@@ -1,8 +1,10 @@
-from sqlmodel import SQLModel
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel
+
+# Pydantic v2 config: allow reading attributes from ORM objects
+model_config = {"from_attributes": True}
 
 class ShipmentCreate(BaseModel):
     external_id: Optional[str]

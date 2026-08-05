@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db import get_session
