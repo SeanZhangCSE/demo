@@ -1,12 +1,35 @@
-The assignment involves creating a shipment events service: ingest carrier tracking events idempotently (using FastAPI + PostgreSQL) and provide accurate shipment timelines. You'll receive only carrier_events.csv — a file containing around 1,000 events, intentionally including duplicates and out-of-order batches. Designing the webhook payload, replay tooling, and environment will be up to you, and these aspects are part of the evaluation. The full brief is attached. Key details:  
+# Quick README
 
-*Timebox: 4–6 hours of work. If you reach the time limit, stop and outline your next steps — a thoughtful, incomplete solution is better than an over-engineered one.  
+# Shipment Events Service (Take-home)
 
-*Due: 2 days, before the interview.  
+This is an async FastAPI service implementing a simple Shipment and Event model using SQLModel + PostgreSQL.
 
-*AI tools are encouraged. Since we work AI-first, include a brief note on how you utilized them (details are in the brief).  
+Quick start (development):
 
-*The demo is the deliverable. Provide one documented command to launch the service and database. After replaying all events, every timeline should be accurate. Don't forget to include the one-page ADR specified in the brief.  
+1. Start services:
 
+   docker-compose up --build
 
-The evaluation criteria are outlined in the brief—there are no hidden expectations. If your submission advances, the final step will be a 60-minute interview, including a live demo, design defense under scaled constraints, and a discussion about leadership.
+2. Apply migrations (in another shell):
+
+   docker-compose exec app alembic upgrade head
+
+   (If Alembic is not configured to connect automatically, set DATABASE_URL env var.)
+
+3. Optionally seed data:
+
+   docker-compose exec app python scripts/seed.py
+
+4. API is available at http://localhost:8000
+
+Endpoints:
+- POST /shipments/ — create shipment
+- GET /shipments/{id} — get shipment
+- POST /shipments/{id}/events — add event
+- GET /shipments/{id}/events — list events for shipment
+- GET /events — global event query
+
+Notes:
+- Implementation uses async SQLModel and asyncpg.
+- Alembic migration included at alembic/versions/0001_create_tables.py
+- For quick local dev, the app will create tables automatically on startup if missing.
