@@ -4,6 +4,7 @@ from app import schemas as s
 from app.db import get_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 import app.crud as crud
+from datetime import datetime
 
 router = APIRouter()
 
@@ -25,6 +26,18 @@ async def get_shipment(shipment_id: UUID, session: AsyncSession = Depends(get_se
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
     return shipment
+
+
+@router.patch("/{shipment_id}", response_model=s.ShipmentRead)
+async def patch_shipment(shipment_id: UUID, payload: s.ShipmentCreate, session: AsyncSession = Depends(get_session)):
+    """Partially update a shipment (external_id, status, metadata).
+
+    Uses the same model as creation for simplicity. Only provided fields are updated.
+    """
+    updated = await crud.update_shipment(session, shipment_id, external_id=payload.external_id, status=payload.status, metadata=payload.metadata)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return updated
 
 
 @router.post("/{shipment_id}/events", response_model=s.EventRead)

@@ -1,16 +1,10 @@
-"""CRUD helpers for Shipments and Events.
-
-This module contains database operations used by the HTTP handlers. Functions
-are written for use with an async SQLModel/SQLAlchemy AsyncSession. Each
-function documents its purpose, parameters, return value, and any important
-side-effects or assumptions (e.g. idempotency behavior).
-"""
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
 from sqlmodel import select
 from app.models import Shipment, Event
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 
 async def create_shipment(session: AsyncSession, external_id: Optional[str] = None, status: str = "created", metadata: Optional[dict] = None) -> Shipment:
@@ -41,6 +35,33 @@ async def get_shipment(session: AsyncSession, shipment_id: UUID) -> Optional[Shi
     Returns None if not found.
     """
     return await session.get(Shipment, shipment_id)
+
+
+async def update_shipment(session: AsyncSession, shipment_id: UUID, external_id: Optional[str] = None, status: Optional[str] = None, metadata: Optional[dict] = None) -> Optional[Shipment]:
+    """Update a Shipment's mutable fields and return the updated object.
+
+    This updates external_id, status, metadata and sets updated_at to now.
+    Returns None if shipment does not exist.
+    """
+    shipment = await get_shipment(session, shipment_id)
+    if not shipment:
+        return None
+    changed = False
+    if external_id is not None:
+        shipment.external_id = external_id
+        changed = True
+    if status is not None:
+        shipment.status = status
+        changed = True
+    if metadata is not None:
+        shipment.metadata = metadata
+        changed = True
+    if changed:
+        shipment.updated_at = datetime.utcnow()
+        session.add(shipment)
+        await session.commit()
+        await session.refresh(shipment)
+    return shipment
 
 
 async def create_event(session: AsyncSession, shipment_id: UUID, event_type: str, occurred_at: Optional[datetime] = None, payload: Optional[dict] = None, idempotency_key: Optional[str] = None) -> Event:
@@ -77,7 +98,18 @@ async def create_event(session: AsyncSession, shipment_id: UUID, event_type: str
 
     event = Event(shipment_id=shipment_id, event_type=event_type, occurred_at=occurred_at or datetime.utcnow(), payload=payload, idempotency_key=idempotency_key)
     session.add(event)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # Possible race: another request inserted the same idempotency key concurrently.
+        await session.rollback()
+        q = select(Event).where(Event.shipment_id == shipment_id, Event.idempotency_key == idempotency_key)
+        res = await session.exec(q)
+        existing = res.first()
+        if existing:
+            return existing
+        # re-raise if we cannot resolve
+        raise
     await session.refresh(event)
     return event
 
